@@ -14,31 +14,30 @@ from typing import Dict, List, Optional, Any, Awaitable, Callable, Union
 
 def install_dependencies():
     """
-    Автоматическая проверка наличия необходимых библиотек.
-    Это гарантирует, что на новом сервере бот запустится без ручной установки pip.
+    Проверяет наличие необходимых библиотек перед запуском.
+    Это гарантирует работу на сервере сразу после загрузки файла.
     """
     required = ["aiogram", "aiohttp"]
     for package in required:
         try:
             __import__(package)
         except ImportError:
-            logging.info(f"Пакет {package} не найден. Инициирую установку...")
+            logging.info(f"Пакет {package} не найден. Начинаю установку...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
-# --- НАСТРОЙКА СИСТЕМНОГО ЛОГИРОВАНИЯ ---
+# --- НАСТРОЙКА ГЛУБОКОГО ЛОГИРОВАНИЯ ---
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        # Логи также будут писаться в файл для отладки на сервере
-        logging.FileHandler("bot_runtime.log", encoding="utf-8")
+        logging.FileHandler("dionysus_runtime.log", encoding="utf-8")
     ]
 )
-logger = logging.getLogger("Dionysus_Alpha_Core")
+logger = logging.getLogger("Dionysus_Core")
 
-# Запуск проверки зависимостей перед импортом aiogram
+# Вызов установки перед основным импортом
 install_dependencies()
 
 from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
@@ -56,29 +55,30 @@ from aiogram.types import (
 
 # --- КОНФИГУРАЦИЯ И БЕЗОПАСНОСТЬ (ENV) ---
 
-# Мы используем значения по умолчанию только если переменные окружения не заданы.
-# На сервере рекомендуется прописать их в .env или системные переменные.
+# Все ключи и ID вынесены в переменные окружения.
+# Если они не заданы в системе, используются ваши стандартные значения.
 TOKEN = os.getenv("BOT_TOKEN", "8372090739:AAGRq6MymU_fMXrWiFbfZ7lCRMT2BY9Dz0Y") 
 SUPER_ADMIN_ID = int(os.getenv("SUPER_ADMIN_ID", 1197260250))
 ALLOWED_GROUP_ID = int(os.getenv("ALLOWED_GROUP_ID", -1003806822122))
 
 if not TOKEN:
-    logger.critical("ОШИБКА: BOT_TOKEN отсутствует. Работа невозможна.")
+    logger.critical("КРИТИЧЕСКАЯ ОШИБКА: BOT_TOKEN не обнаружен. Работа прекращена.")
     sys.exit(1)
 
 # --- УПРАВЛЕНИЕ ФАЙЛОВОЙ СИСТЕМОЙ ---
 
 BASE_DIR = Path(__file__).resolve().parent
-# Если бот запущен в Docker, используем стандартный путь /app/data
-if Path("/app").exists() or os.getenv("DOCKER_ENV"):
+# Путь /app/data используется для Docker-контейнеров
+if Path("/app").exists() or os.getenv("DOCKER_MODE"):
     DATA_DIR = Path("/app/data")
 else:
     DATA_DIR = BASE_DIR / "data"
 
+# Создаем папку для БД, если её нет
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "game_bd.db"
 
-# --- РАСШИРЕННЫЕ ИГРОВЫЕ БАЗЫ ДАННЫХ (CONTENT PACK) ---
+# --- МАССИВНЫЕ ИГРОВЫЕ БАЗЫ ДАННЫХ (CONTENT PACK) ---
 
 BUNKER_DATA = {
     "professions": [
@@ -87,30 +87,35 @@ BUNKER_DATA = {
         "Ученый-генетик", "Слесарь 6 разряда", "Пилот гражданской авиации", "Психолог", 
         "Строитель-высотник", "Электрик", "Химик-технолог", "Библиотекарь", "Эколог",
         "Астроном", "Журналист", "Адвокат", "Музыкант", "Священник", "Полицейский",
-        "Ветеринар", "Архитектор", "Дизайнер", "Экономист", "Логист", "Переводчик"
+        "Ветеринар", "Архитектор", "Дизайнер", "Экономист", "Логист", "Переводчик",
+        "Моряк дальнего плавания", "Геолог", "Археолог", "Фармацевт", "Космонавт"
     ],
     "health": [
         "Идеальное здоровье", "Хронический кашель", "Слепота на один глаз", "Крепкий иммунитет", 
         "Бессонница", "Астма в легкой форме", "Аллергия на пыль", "Легкая хромота", 
         "Отличное зрение", "Порох в пороховницах", "Диабет 2 типа", "Анемия", 
-        "Слабое сердце", "Повышенное давление", "Хорошая физическая форма", "Плоскостопие"
+        "Слабое сердце", "Повышенное давление", "Хорошая физическая форма", "Плоскостопие",
+        "Отсутствие фаланги пальца", "Заикание при испуге", "Дальтонизм", "Мигрени"
     ],
     "traits": [
         "Трудолюбие", "Скрытность", "Лидерские качества", "Паникер", "Оптимист", 
         "Скептик", "Агрессивность", "Альтруизм", "Гениальность", "Медлительность",
         "Внимательность", "Рассеянность", "Хладнокровие", "Честность", "Хитрость",
-        "Выносливость", "Перфекционизм", "Авантюризм", "Трусость", "Смелость"
+        "Выносливость", "Перфекционизм", "Авантюризм", "Трусость", "Смелость",
+        "Верность", "Эгоизм", "Саркастичность", "Замкнутость", "Миролюбие"
     ],
     "hobbies": [
         "Игра на гитаре", "Паркур", "Чтение классики", "Садоводство", "Вязание", 
         "Бокс", "Шахматы", "Кулинария", "Рыбалка", "Охота", "Йога", "Стрельба",
-        "Фотография", "Коллекционирование ножей", "Реставрация мебели", "Танцы"
+        "Фотография", "Коллекционирование ножей", "Реставрация мебели", "Танцы",
+        "Астрология", "Оригами", "Битбокс", "Альпинизм", "Пчеловодство"
     ],
     "baggage": [
         "Охотничий нож", "Армейская аптечка", "Фонарик на солнечных батареях", "Мешок семян", 
         "Книга 'Как выжить'", "Старая фотография семьи", "Рация (радиус 5 км)", "Зажигалка", 
         "Веревка 10 метров", "Компас", "Топор", "Набор рыболова", "Бутылка виски",
-        "Газовая горелка", "Карта местности", "Монтировка", "Бинокль", "Плеер с музыкой"
+        "Газовая горелка", "Карта местности", "Монтировка", "Бинокль", "Плеер с музыкой",
+        "Губная гармошка", "Лупа", "Пачка сигарет", "Набор швейных игл", "Мел"
     ]
 }
 
@@ -119,25 +124,30 @@ TESTS_DB = [
     "https://t.me/quizbot?start=personality_test", 
     "https://t.me/quizbot?start=who_are_you",
     "https://t.me/quizbot?start=iq_test_mini",
-    "https://t.me/quizbot?start=career_path"
+    "https://t.me/quizbot?start=career_path",
+    "https://t.me/quizbot?start=logic_puzzle",
+    "https://t.me/quizbot?start=fantasy_role"
 ]
 
 BINGO_DB = [
     "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Bingo_card.svg/512px-Bingo_card.svg.png",
-    "https://raw.githubusercontent.com/otter007/bingo-cards/master/bingo.png"
+    "https://raw.githubusercontent.com/otter007/bingo-cards/master/bingo.png",
+    "https://i.pinimg.com/originals/9f/8e/4a/9f8e4a9e3e3b3e3e3e3e3e3e3e3e3e3e.png"
 ]
 
 CROC_WORDS = [
     "Синхрофазотрон", "Бутерброд", "Космонавт", "Прокрастинация", "Электричество", 
     "Зебра", "Мим", "Гироскутер", "Экскаватор", "Телепортация", "Фотосинтез",
     "Эволюция", "Гравитация", "Интуиция", "Параллелепипед", "Адреналин", "Вдохновение",
-    "Круговорот", "Метаморфоза", "Скептицизм", "Филантроп", "Дискриминация", "Харизма"
+    "Круговорот", "Метаморфоза", "Скептицизм", "Филантроп", "Дискриминация", "Харизма",
+    "Апокалипсис", "Иллюстрация", "Конфронтация", "Оптимизация", "Спецификация"
 ]
 
 KMK_CHARACTERS = [
     "Шрек", "Гарри Поттер", "Тони Старк", "Гермиона Грейнджер", "Джокер", "Мастер Йода", 
     "Дарт Вейдер", "Бэтмен", "Капитан Америка", "Чудо-Женщина", "Шерлок Холмс", 
-    "Джек Воробей", "Геральт из Ривии", "Лари Крофт", "Наруто", "Питер Пэн"
+    "Джек Воробей", "Геральт из Ривии", "Лара Крофт", "Наруто", "Питер Пэн",
+    "Рик Санчез", "Морти", "Эминем", "Илон Маск", "Джон Уик", "Терминатор"
 ]
 
 TRUTH_DB = [
@@ -145,7 +155,9 @@ TRUTH_DB = [
     "Что ты скрываешь от родителей даже сейчас?", "Самая большая ложь в твоей жизни?",
     "Какое самое странное блюдо ты ел?", "Твой самый большой страх?", 
     "О чем ты жалеешь больше всего?", "Твое первое впечатление о человеке слева?",
-    "Что бы ты изменил в своем прошлом?", "Самый безумный поступок ради денег?"
+    "Что бы ты изменил в своем прошлом?", "Самый безумный поступок ради денег?",
+    "Был ли у тебя воображаемый друг?", "Какая твоя самая вредная привычка?",
+    "Ты когда-нибудь подслушивал чужие разговоры?"
 ]
 
 DARE_DB = [
@@ -153,7 +165,9 @@ DARE_DB = [
     "Напиши бывшему/бывшей 'Привет' и покажи скриншот", "Станцуй под воображаемую музыку на видео (15 сек)",
     "Расскажи анекдот с серьезным лицом", "Позвони другу и скажи, что ты выиграл миллион",
     "Изобрази тюленя в течение 20 секунд", "Сделай 10 приседаний, считая на иностранном языке",
-    "Напиши в чат 10 комплиментов админу", "Выпей стакан воды залпом"
+    "Напиши в чат 10 комплиментов админу", "Выпей стакан воды залпом",
+    "Пришли фото своего холодильника", "Поставь на аватарку в ТГ на час фото чеснока",
+    "Напиши любому человеку 'Я знаю твой секрет'"
 ]
 
 NHIE_DB = [
@@ -161,7 +175,8 @@ NHIE_DB = [
     "Я никогда не просыпал работу/учебу", "Я никогда не крал вещи из отелей",
     "Я никогда не пользовался чужой зубной щеткой", "Я никогда не врал о своем возрасте",
     "Я никогда не плакал во время фильма", "Я никогда не засыпал в транспорте",
-    "Я никогда не терял ключи от дома", "Я никогда не пробовал корма для животных"
+    "Я никогда не терял ключи от дома", "Я никогда не пробовал корма для животных",
+    "Я никогда не разбивал экран телефона", "Я никогда не купался в одежде"
 ]
 
 N5_DB = [
@@ -169,7 +184,8 @@ N5_DB = [
     "Назови 5 мужских имен на букву 'К'", "Назови 5 видов морских рыб",
     "Назови 5 стран Африки", "Назови 5 персонажей мультфильмов Disney",
     "Назови 5 предметов в кабинете стоматолога", "Назови 5 языков программирования",
-    "Назови 5 компонентов салата Оливье", "Назови 5 столиц Европы"
+    "Назови 5 компонентов салата Оливье", "Назови 5 столиц Европы",
+    "Назови 5 инструментов оркестра", "Назови 5 видов холодного оружия"
 ]
 
 N7_DB = [
@@ -177,12 +193,13 @@ N7_DB = [
     "Назови 7 видов экзотических фруктов", "Назови 7 столиц азиатских стран",
     "Назови 7 предметов бытовой техники", "Назови 7 названий созвездий",
     "Назови 7 цветов радуги (в правильном порядке)", "Назови 7 великих русских поэтов",
-    "Назови 7 деталей системного блока ПК", "Назови 7 видов спорта с мячом"
+    "Назови 7 деталей системного блока ПК", "Назови 7 видов спорта с мячом",
+    "Назови 7 химических элементов", "Назови 7 чудес света"
 ]
 
-PLAYER_EMOJIS = ["🍷", "📺", "👍", "😂", "🎭", "🎮", "🎲", "🌟", "🔥", "🧊", "🌪️", "⚡", "🍀", "🧿"]
+PLAYER_EMOJIS = ["🍷", "📺", "👍", "😂", "🎭", "🎮", "🎲", "🌟", "🔥", "🧊", "🌪️", "⚡", "🍀", "🧿", "💎", "🔋"]
 
-# --- ШАБЛОН ПОЛЯ МОНОПОЛИИ (УДЛИНЕННЫЙ) ---
+# --- ШАБЛОН ПОЛЯ МОНОПОЛИИ (ПОЛНЫЙ ЦИКЛ) ---
 
 MONOPOLY_BOARD_TEMPLATE = [
     {"type": "start", "name": "СТАРТ (+200)", "short": "СТАРТ"},
@@ -203,7 +220,7 @@ MONOPOLY_BOARD_TEMPLATE = [
     {"type": "prop", "name": "Рублевское ш.", "short": "Рубл.", "price": 400, "rent": 200, "owner": None}
 ]
 
-# --- ГЛОБАЛЬНЫЕ СТРУКТУРЫ ДАННЫХ (IN-MEMORY) ---
+# --- ГЛОБАЛЬНЫЕ СЕССИИ (IN-MEMORY) ---
 
 fortune_system = {}  # {user_id: {"name": str, "emoji": str, "stats": dict}}
 mafia_sessions = {}
@@ -211,14 +228,16 @@ bunker_sessions = {}
 monopoly_sessions = {}
 tictactoe_games = {}
 
-# --- СИСТЕМА УПРАВЛЕНИЯ БАЗОЙ ДАННЫХ ---
+# --- СИСТЕМА УПРАВЛЕНИЯ БАЗОЙ ДАННЫХ (SQLITE) ---
 
 def init_db():
-    """Инициализация SQLite и загрузка всех данных."""
+    """
+    Инициализирует структуру БД и подгружает данные в память бота.
+    """
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
-            # Таблица профилей
+            # Таблица профилей пользователей
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS profiles (
                     user_id INTEGER PRIMARY KEY,
@@ -228,7 +247,7 @@ def init_db():
                     games_played INTEGER DEFAULT 0
                 )
             """)
-            # Таблица кастомного контента
+            # Таблица пользовательского игрового контента
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS custom_items (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -239,7 +258,7 @@ def init_db():
             """)
             conn.commit()
             
-            # Загрузка существующих профилей
+            # Загружаем существующие профили
             cur.execute("SELECT user_id, name, emoji FROM profiles")
             for row in cur.fetchall():
                 fortune_system[row[0]] = {
@@ -248,7 +267,7 @@ def init_db():
                     "stats": {"xp": 0, "games": 0}
                 }
             
-            # Синхронизация списков с БД
+            # Загружаем кастомные вопросы/слова
             cur.execute("SELECT category, content FROM custom_items")
             db_map = {
                 "test": TESTS_DB, "bingo": BINGO_DB, "croc": CROC_WORDS, 
@@ -260,12 +279,12 @@ def init_db():
                 if cat in db_map and content not in db_map[cat]:
                     db_map[cat].append(content)
                     
-        logger.info("База данных успешно инициализирована и синхронизирована.")
+        logger.info("СИНХРОНИЗАЦИЯ: База данных успешно подключена и обработана.")
     except Exception as e:
-        logger.error(f"Критическая ошибка инициализации БД: {e}", exc_info=True)
+        logger.error(f"ОШИБКА БД: Не удалось инициализировать SQLite: {e}", exc_info=True)
 
 def save_profile_db(user_id: int, name: str, emoji: Optional[str]):
-    """Сохранение/обновление данных пользователя в БД."""
+    """Обновляет запись о пользователе в базе данных."""
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
@@ -277,11 +296,12 @@ def save_profile_db(user_id: int, name: str, emoji: Optional[str]):
                     emoji=excluded.emoji
             """, (user_id, name, emoji))
             conn.commit()
+            logger.info(f"DB: Профиль {user_id} обновлен (Имя: {name}).")
     except Exception as e:
-        logger.error(f"Ошибка сохранения профиля {user_id}: {e}")
+        logger.error(f"DB ERROR: Не удалось сохранить профиль {user_id}: {e}")
 
 def add_custom_item_db(category: str, content: str, user_id: int):
-    """Добавление нового вопроса/слова в базу данных."""
+    """Сохраняет новый элемент игры в БД."""
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
@@ -290,16 +310,17 @@ def add_custom_item_db(category: str, content: str, user_id: int):
                 (category, content, user_id)
             )
             conn.commit()
+            logger.info(f"DB: Добавлен новый контент в категорию '{category}'.")
     except Exception as e:
-        logger.error(f"Ошибка добавления элемента ({category}): {e}")
+        logger.error(f"DB ERROR: Ошибка записи контента: {e}")
 
-# --- MIDDLEWARE: ОГРАНИЧЕНИЕ ДОСТУПА ---
+# --- MIDDLEWARE: ОГРАНИЧЕНИЕ ПО ГРУППАМ ---
 
 class RestrictChatMiddleware(BaseMiddleware):
     """
-    Middleware для обеспечения безопасности.
-    Бот будет реагировать только в ЛС или в ОДНОЙ конкретной группе.
-    Это предотвращает использование бота в чужих чатах.
+    Обеспечивает безопасность сервера. 
+    Бот игнорирует сообщения из любых групп, кроме одной разрешенной.
+    Личные сообщения (ЛС) всегда разрешены.
     """
     async def __call__(
         self,
@@ -314,18 +335,22 @@ class RestrictChatMiddleware(BaseMiddleware):
             chat = event.message.chat
             
         if chat:
-            # Разрешаем ЛС или конкретную группу
-            if chat.id == SUPER_ADMIN_ID or chat.type == "private" or chat.id == ALLOWED_GROUP_ID:
+            # Супер-админ может пользоваться ботом везде (для тестов)
+            user_id = data.get("event_from_user").id if data.get("event_from_user") else 0
+            if user_id == SUPER_ADMIN_ID:
+                return await handler(event, data)
+                
+            # Разрешаем ЛС или конкретный чат
+            if chat.type == "private" or chat.id == ALLOWED_GROUP_ID:
                 return await handler(event, data)
             else:
-                # Игнорируем чужие чаты
-                return
+                return # Игнорируем остальные запросы
         return await handler(event, data)
 
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ БОТА ---
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 
 async def is_admin(message: types.Message) -> bool:
-    """Проверка прав администратора для запуска игр."""
+    """Проверяет наличие прав администратора чата или бота."""
     if message.from_user.id == SUPER_ADMIN_ID:
         return True
     if message.chat.type == "private":
@@ -336,17 +361,8 @@ async def is_admin(message: types.Message) -> bool:
     except Exception:
         return False
 
-def check_game_active(chat_id: int) -> bool:
-    """Проверка, запущен ли какой-либо игровой процесс в чате."""
-    return any([
-        chat_id in mafia_sessions,
-        chat_id in bunker_sessions,
-        chat_id in monopoly_sessions,
-        chat_id in tictactoe_games
-    ])
-
 def get_user_profile(user: types.User) -> dict:
-    """Получение или создание профиля пользователя в памяти."""
+    """Возвращает данные профиля из памяти, создавая его при отсутствии."""
     if user.id not in fortune_system:
         fortune_system[user.id] = {
             "name": user.first_name, 
@@ -356,61 +372,33 @@ def get_user_profile(user: types.User) -> dict:
         save_profile_db(user.id, user.first_name, None)
     return fortune_system[user.id]
 
-# --- МОДУЛЬ: УПРАВЛЕНИЕ ПРОФИЛЕМ ---
-
-@dp.message(Command("ник", "name", prefix="!/"))
-async def set_name_cmd(message: Message, command: CommandObject):
-    if not command.args:
-        return await message.answer(
-            "😂 Ошибка алгоритма. Требуются входные данные: <code>!ник [ВашНик]</code> 🍷.", 
-            parse_mode="HTML"
-        )
-    name = command.args.strip()[:20]
-    profile = get_user_profile(message.from_user)
-    profile["name"] = name
-    save_profile_db(message.from_user.id, name, profile["emoji"])
-    await message.answer(f"😂 Профиль обновлен. Система приветствует вас, <b>{name}</b> 🍷.", parse_mode="HTML")
-
-@dp.message(Command("стикер", "emoji", prefix="!/"))
-async def set_emoji_cmd(message: Message, command: CommandObject):
-    if not command.args:
-        return await message.answer("😂 Некорректный запрос. Используйте: <code>!стикер 🍷</code> 📺.", parse_mode="HTML")
-    
-    emoji = command.args.strip().split()[0]
-    # Проверка на уникальность эмодзи (опционально)
-    for uid, data in fortune_system.items():
-        if data.get("emoji") == emoji and uid != message.from_user.id:
-            return await message.answer("😂 Данный маркер уже занят другим объектом. Выберите свободный 👍.")
-            
-    profile = get_user_profile(message.from_user)
-    profile["emoji"] = emoji
-    save_profile_db(message.from_user.id, profile["name"], emoji)
-    await message.answer(f"😂 Визуальный маркер {emoji} успешно привязан к вашему ID 📺.")
-
-# --- ЛОГИКА ИГРЫ: МАФИЯ (РАСШИРЕННАЯ) ---
+# --- МОДУЛЬ: МАФИЯ (ДЕТАЛЬНАЯ ЛОГИКА) ---
 
 async def mafia_check_win(chat_id: int):
+    """Анализирует состояние игры и объявляет победителей."""
     s = mafia_sessions.get(chat_id)
     if not s: return False
     alive = {uid: p for uid, p in s["players"].items() if p["is_alive"]}
     mafias = [p for p in alive.values() if p["role"] == "Мафия"]
     
     if not mafias:
-        await bot.send_message(chat_id, "😂 <b>Симуляция завершена.</b> Победа мирных жителей. Угроза устранена 🍷.", parse_mode="HTML")
+        await bot.send_message(chat_id, "😂 <b>Симуляция завершена.</b>\nПобеда мирных жителей! Угроза устранена 🍷.", parse_mode="HTML")
         del mafia_sessions[chat_id]
         return True
     if len(mafias) >= (len(alive) - len(mafias)):
-        await bot.send_message(chat_id, "😂 <b>Симуляция завершена.</b> Победа мафии. Город захвачен 📺.", parse_mode="HTML")
+        await bot.send_message(chat_id, "😂 <b>Симуляция завершена.</b>\nПобеда мафии! Город захвачен преступностью 📺.", parse_mode="HTML")
         del mafia_sessions[chat_id]
         return True
     return False
 
 async def mafia_night_cycle(chat_id: int):
-    s = mafia_sessions.get(chat_id)
+    """Инициирует ночную фазу действий активных ролей."""
+    s = mafia_sessions[chat_id]
     s["phase"] = "night"
     s["night_actions"] = {"kill": None, "heal": None, "check": None}
     
-    await bot.send_message(chat_id, "😂 <b>Фаза: Ночь.</b> Город засыпает. Просыпаются активные роли. Жду ваших команд в ЛС 👍.", parse_mode="HTML")
+    logger.info(f"MAFIA: Начало ночи в чате {chat_id}")
+    await bot.send_message(chat_id, "😂 <b>Фаза: Ночь.</b> Город засыпает.\nАктивные роли, жду ваших сигналов в личных сообщениях 👍.", parse_mode="HTML")
     
     alive = {uid: p for uid, p in s["players"].items() if p["is_alive"]}
     for uid, p in alive.items():
@@ -421,62 +409,67 @@ async def mafia_night_cycle(chat_id: int):
                 kb.button(text=tp["name"], callback_data=f"mf_act_{chat_id}_{p['role']}_{tid}")
             
             try:
-                await bot.send_message(uid, f"😂 Ваша роль: <b>{p['role']}</b>. Выберите цель 🍷:", reply_markup=kb.adjust(2).as_markup(), parse_mode="HTML")
+                await bot.send_message(uid, f"😂 Ваша активная роль: <b>{p['role']}</b>.\nСделайте свой выбор 🍷:", reply_markup=kb.adjust(2).as_markup(), parse_mode="HTML")
             except TelegramForbiddenError:
-                await bot.send_message(chat_id, f"⚠️ Объект <b>{p['name']}</b> не открыл ЛС боту! Пропуск хода активной роли.", parse_mode="HTML")
+                await bot.send_message(chat_id, f"⚠️ Критическая ошибка: Объект <b>{p['name']}</b> ({p['role']}) не разрешил боту писать в ЛС! Пропуск хода.")
 
     s["timer"] = asyncio.create_task(asyncio.sleep(60))
-    try: await s["timer"]
-    except asyncio.CancelledError: pass
+    try: 
+        await s["timer"]
+    except asyncio.CancelledError: 
+        pass
     await mafia_day_cycle(chat_id)
 
 @dp.callback_query(F.data.startswith("mf_act_"))
 async def mafia_callback_handler(c: CallbackQuery):
+    """Обрабатывает тайные нажатия кнопок в ЛС."""
     _, _, cid, role, tid = c.data.split("_")
     cid, tid = int(cid), int(tid)
     s = mafia_sessions.get(cid)
     if not s or s["phase"] != "night": return
     
-    key = {"Мафия": "kill", "Доктор": "heal", "Комиссар": "check"}[role]
-    if s["night_actions"][key]: return await c.answer("Выбор уже зафиксирован!")
+    act_key = {"Мафия": "kill", "Доктор": "heal", "Комиссар": "check"}[role]
+    if s["night_actions"][act_key]: 
+        return await c.answer("Ваше решение уже внесено в базу!")
     
-    s["night_actions"][key] = tid
+    s["night_actions"][act_key] = tid
     
     if role == "Комиссар":
         target = s["players"][tid]
         res = "Мафия" if target["role"] == "Мафия" else "Мирный"
-        await c.message.edit_text(f"😂 Алгоритм подтверждает: {target['name']} — <b>{res}</b> 📺.", parse_mode="HTML")
+        await c.message.edit_text(f"😂 Алгоритм проверил объект: {target['name']} — <b>{res}</b> 📺.", parse_mode="HTML")
     else:
-        await c.message.edit_text(f"😂 Действие подтверждено для объекта: {s['players'][tid]['name']} 🍷.")
+        await c.message.edit_text(f"😂 Выбор подтвержден. Цель зафиксирована: {s['players'][tid]['name']} 🍷.")
     
-    # Проверка, все ли походили
+    # Автоматический переход к дню, если все активные роли походили
     needed = [p["role"] for p in s["players"].values() if p["is_alive"] and p["role"] in ["Мафия", "Доктор", "Комиссар"]]
     if all(s["night_actions"][{"Мафия":"kill","Доктор":"heal","Комиссар":"check"}[r]] for r in needed):
         if s.get("timer"): s["timer"].cancel()
 
 async def mafia_day_cycle(chat_id: int):
+    """Подводит итоги ночи и запускает обсуждение."""
     s = mafia_sessions.get(chat_id)
     if not s or s["phase"] == "day": return
     s["phase"] = "day"
     acts = s["night_actions"]
     
-    await bot.send_message(chat_id, "😂 <b>Фаза: День.</b> Алгоритм обрабатывает ночные аномалии... 📺", parse_mode="HTML")
+    await bot.send_message(chat_id, "😂 <b>Фаза: День.</b> Расчет ночных событий завершен... 📺", parse_mode="HTML")
     await asyncio.sleep(2)
     
-    killed_id = acts["kill"]
+    target_id = acts["kill"]
     healed_id = acts["heal"]
     
-    if killed_id and killed_id != healed_id:
-        p = s["players"][killed_id]
+    if target_id and target_id != healed_id:
+        p = s["players"][target_id]
         p["is_alive"] = False
-        await bot.send_message(chat_id, f"😂 Жертва ночи: <b>{p['name']}</b> ({p['role']}). Объект выведен из системы 🍷.", parse_mode="HTML")
+        await bot.send_message(chat_id, f"😂 Ночная сводка: Объект <b>{p['name']}</b> ({p['role']}) был устранен 🍷.", parse_mode="HTML")
     else:
-        await bot.send_message(chat_id, "😂 Удивительно, но ночь прошла без потерь. Все объекты активны 👍.")
+        await bot.send_message(chat_id, "😂 Ночная сводка: Потерь нет. Все системы защиты сработали штатно 👍.")
         
     if await mafia_check_win(chat_id): return
     
-    kb = InlineKeyboardBuilder().button(text="Завершить обсуждение 📺", callback_data=f"mf_skip_{chat_id}")
-    await bot.send_message(chat_id, "😂 Обсуждение (3 мин). Попытайтесь вычислить ошибку в коде (Мафию) 👍.", reply_markup=kb.as_markup(), parse_mode="HTML")
+    kb = InlineKeyboardBuilder().button(text="Начать голосование 📺", callback_data=f"mf_skip_{chat_id}")
+    await bot.send_message(chat_id, "😂 <b>Обсуждение (3 мин).</b> Вычислите Мафию среди присутствующих 👍.", reply_markup=kb.as_markup(), parse_mode="HTML")
     
     s["timer"] = asyncio.create_task(asyncio.sleep(180))
     try: await s["timer"]
@@ -484,17 +477,18 @@ async def mafia_day_cycle(chat_id: int):
     await mafia_voting_cycle(chat_id)
 
 async def mafia_voting_cycle(chat_id: int):
+    """Запускает открытое голосование в чате."""
     s = mafia_sessions.get(chat_id)
     if not s or s["phase"] == "voting": return
     s["phase"], s["votes"] = "voting", {}
     
-    alive = {uid: p for uid, p in s["players"].items() if p["is_alive"]}
+    alive_players = {uid: p for uid, p in s["players"].items() if p["is_alive"]}
     kb = InlineKeyboardBuilder()
-    for uid, p in alive.items():
+    for uid, p in alive_players.items():
         kb.button(text=p["name"], callback_data=f"mf_v_{chat_id}_{uid}")
-    kb.button(text="Завершить 📺", callback_data=f"mf_vend_{chat_id}")
+    kb.button(text="Завершить принудительно 📺", callback_data=f"mf_vend_{chat_id}")
     
-    await bot.send_message(chat_id, "😂 <b>Голосование!</b> Выберите объект для деактивации 📺:", reply_markup=kb.adjust(2, 1).as_markup(), parse_mode="HTML")
+    await bot.send_message(chat_id, "😂 <b>Голосование!</b>\nВыберите объект для деактивации 📺:", reply_markup=kb.adjust(2, 1).as_markup(), parse_mode="HTML")
     
     s["timer"] = asyncio.create_task(asyncio.sleep(60))
     try: await s["timer"]
@@ -503,38 +497,41 @@ async def mafia_voting_cycle(chat_id: int):
 
 @dp.callback_query(F.data.startswith("mf_v_"))
 async def mafia_vote_handler(c: CallbackQuery):
+    """Фиксирует голоса игроков."""
     _, _, cid, tid = c.data.split("_")
     cid, tid, uid = int(cid), int(tid), c.from_user.id
     s = mafia_sessions.get(cid)
     
-    if not s or s["phase"] != "voting": return await c.answer("Голосование не активно!")
+    if not s or s["phase"] != "voting": return await c.answer("Голосование в данный момент закрыто!")
     if uid not in s["players"] or not s["players"][uid]["is_alive"]:
-        return await c.answer("Мертвые объекты не голосуют! 😂", show_alert=True)
-    if uid in s["votes"]: return await c.answer("Голос уже учтен.")
+        return await c.answer("Вы выбыли из симуляции и не можете голосовать!", show_alert=True)
+    if uid in s["votes"]: 
+        return await c.answer("Ваш голос уже зарегистрирован.")
     
     s["votes"][uid] = tid
-    await c.answer(f"Принят голос за {s['players'][tid]['name']} 🍷.")
+    await c.answer(f"Голос против {s['players'][tid]['name']} принят 🍷.")
     
     alive_count = len([p for p in s["players"].values() if p["is_alive"]])
     if len(s["votes"]) >= alive_count:
         if s.get("timer"): s["timer"].cancel()
 
 async def mafia_resolve_voting(chat_id: int):
+    """Подсчитывает результаты голосования и исключает игрока."""
     s = mafia_sessions.get(chat_id)
     if not s or s["phase"] != "voting": return
-    s["phase"] = "ended"
+    s["phase"] = "ended_vote"
     
     if not s["votes"]:
-        await bot.send_message(chat_id, "😂 Система не получила данных. Никто не исключен 👍.")
+        await bot.send_message(chat_id, "😂 Результат: Данные отсутствуют. Никто не исключен 👍.")
     else:
         from collections import Counter
         counts = Counter(s["votes"].values())
-        max_votes = max(counts.values())
-        candidates = [tid for tid, v in counts.items() if v == max_votes]
+        max_v = max(counts.values())
+        candidates = [tid for tid, v in counts.items() if v == max_v]
         target_id = random.choice(candidates)
         p = s["players"][target_id]
         p["is_alive"] = False
-        await bot.send_message(chat_id, f"😂 Большинством голосов исключен объект <b>{p['name']}</b>. Его роль: <b>{p['role']}</b> 🍷.", parse_mode="HTML")
+        await bot.send_message(chat_id, f"😂 Большинством голосов исключен объект <b>{p['name']}</b>.\nЕго истинная роль: <b>{p['role']}</b> 🍷.", parse_mode="HTML")
         
     if not await mafia_check_win(chat_id):
         await mafia_night_cycle(chat_id)
@@ -542,11 +539,13 @@ async def mafia_resolve_voting(chat_id: int):
 @dp.message(Command("мафия_старт", prefix="!/"))
 async def mafia_init_cmd(m: Message):
     if not await is_admin(m): return
-    if check_game_active(m.chat.id): return await m.answer("😂 Система занята другим алгоритмом 👍.")
-    
-    mafia_sessions[m.chat.id] = {"players": {}, "active": False, "phase": "lobby"}
-    kb = InlineKeyboardBuilder().button(text="Войти 🍷", callback_data="mf_join").button(text="Запуск 😂", callback_data="mf_launch")
-    await m.answer("😂 <b>Инициализация Мафии.</b> Ожидание объектов 🍷.", reply_markup=kb.as_markup(), parse_mode="HTML")
+    if chat_id := m.chat.id:
+        if chat_id in mafia_sessions or chat_id in bunker_sessions or chat_id in monopoly_sessions:
+            return await m.answer("😂 Ошибка. Система уже занята другим процессом 👍.")
+            
+        mafia_sessions[chat_id] = {"players": {}, "active": False, "phase": "lobby"}
+        kb = InlineKeyboardBuilder().button(text="Войти 🍷", callback_data="mf_join").button(text="Старт 📺", callback_data="mf_launch")
+        await m.answer("😂 <b>Протокол 'МАФИЯ' активирован.</b>\nОжидание подключения объектов... 🍷", reply_markup=kb.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data == "mf_join")
 async def mafia_join_handler(c: CallbackQuery):
@@ -554,58 +553,64 @@ async def mafia_join_handler(c: CallbackQuery):
     if not s or s["active"]: return
     profile = get_user_profile(c.from_user)
     s["players"][c.from_user.id] = {"name": profile["name"], "is_alive": True, "role": "Мирный"}
-    await c.answer("Вы авторизованы в системе!")
+    await c.answer("Вы успешно авторизованы! 👍")
 
 @dp.callback_query(F.data == "mf_launch")
 async def mafia_launch_handler(c: CallbackQuery):
     cid = c.message.chat.id
     s = mafia_sessions.get(cid)
-    if not s or len(s["players"]) < 4: return await c.answer("Требуется минимум 4 игрока! 👍", show_alert=True)
+    if not s or len(s["players"]) < 4: 
+        return await c.answer("Недостаточно объектов для старта (мин. 4)!", show_alert=True)
     
     s["active"] = True
     uids = list(s["players"].keys())
     random.shuffle(uids)
+    
+    # Распределение ролей
     s["players"][uids[0]]["role"] = "Мафия"
     s["players"][uids[1]]["role"] = "Доктор"
     s["players"][uids[2]]["role"] = "Комиссар"
     
     for uid, p in s["players"].items():
-        try: await bot.send_message(uid, f"😂 Симуляция началась. Ваша роль: <b>{p['role']}</b> 🍷.", parse_mode="HTML")
-        except Exception: pass
+        try:
+            await bot.send_message(uid, f"😂 Симуляция запущена.\nВаша персональная роль: <b>{p['role']}</b> 🍷.", parse_mode="HTML")
+        except Exception: 
+            pass
         
-    await c.message.edit_text("😂 Роли распределены. Город засыпает... 📺")
+    await c.message.edit_text("😂 Роли распределены. Переход в ночной режим... 📺")
     await mafia_night_cycle(cid)
 
-# --- ЛОГИКА ИГРЫ: МОНОПОЛИЯ (ПОЛНАЯ СЕТКА) ---
+# --- МОДУЛЬ: МОНОПОЛИЯ (ЭКОНОМИЧЕСКИЙ ЦИКЛ) ---
 
 def render_mono_keyboard(s: dict, actions: Optional[List[dict]] = None) -> types.InlineKeyboardMarkup:
+    """Визуализирует игровое поле 4x4 с помощью кнопок."""
     builder = InlineKeyboardBuilder()
     
-    def get_cell_ui(idx):
+    def get_cell_text(idx):
         cell = s["board"][idx]
-        occupants = [p["emoji"] for p in s["players"].values() if p["pos"] == idx and not p["is_bankrupt"]]
+        occ = [p["emoji"] for p in s["players"].values() if p["pos"] == idx and not p["is_bankrupt"]]
         text = cell["short"]
         if cell.get("owner"):
-            owner_p = s["players"][cell["owner"]]
-            text += f"({owner_p['emoji']})"
-        if occupants:
-            text += " " + "".join(occupants)
+            owner_data = s["players"][cell["owner"]]
+            text += f"({owner_data['emoji']})"
+        if occ:
+            text += " " + "".join(occ)
         return text
 
-    # Отрисовка поля 4x4 кнопками
-    # Верхний ряд
-    builder.row(*[InlineKeyboardButton(text=get_cell_ui(i), callback_data=f"mono_info_{i}") for i in range(0, 4)])
-    # Средние ряды
-    builder.row(InlineKeyboardButton(text=get_cell_ui(15), callback_data="mono_info_15"), 
+    # Ряд 1
+    builder.row(*[InlineKeyboardButton(text=get_cell_text(i), callback_data=f"mono_info_{i}") for i in range(0, 4)])
+    # Ряд 2
+    builder.row(InlineKeyboardButton(text=get_cell_text(15), callback_data="mono_info_15"), 
                 InlineKeyboardButton(text="🏢", callback_data="none"), 
                 InlineKeyboardButton(text="🏦", callback_data="none"), 
-                InlineKeyboardButton(text=get_cell_ui(4), callback_data="mono_info_4"))
-    builder.row(InlineKeyboardButton(text=get_cell_ui(14), callback_data="mono_info_14"), 
+                InlineKeyboardButton(text=get_cell_text(4), callback_data="mono_info_4"))
+    # Ряд 3
+    builder.row(InlineKeyboardButton(text=get_cell_text(14), callback_data="mono_info_14"), 
                 InlineKeyboardButton(text="💰", callback_data="none"), 
                 InlineKeyboardButton(text="⚖️", callback_data="none"), 
-                InlineKeyboardButton(text=get_cell_ui(5), callback_data="mono_info_5"))
-    # Нижний ряд (в обратном порядке для закольцованности визуальной)
-    builder.row(*[InlineKeyboardButton(text=get_cell_ui(i), callback_data=f"mono_info_{i}") for i in range(13, 9, -1)])
+                InlineKeyboardButton(text=get_cell_text(5), callback_data="mono_info_5"))
+    # Ряд 4
+    builder.row(*[InlineKeyboardButton(text=get_cell_text(i), callback_data=f"mono_info_{i}") for i in range(13, 9, -1)])
     
     if actions:
         for btn in actions:
@@ -614,14 +619,14 @@ def render_mono_keyboard(s: dict, actions: Optional[List[dict]] = None) -> types
     return builder.as_markup()
 
 async def mono_process_turn(chat_id: int):
+    """Управляет очередностью ходов и победой."""
     s = monopoly_sessions.get(chat_id)
     if not s: return
     
-    # Проверка на победителя
-    active = [uid for uid, p in s["players"].items() if not p["is_bankrupt"]]
-    if len(active) == 1:
-        winner = s["players"][active[0]]
-        await bot.send_message(chat_id, f"🏆 <b>Экономическое доминирование подтверждено!</b> Победитель: {winner['emoji']} <b>{winner['name']}</b>! 👍.", parse_mode="HTML")
+    active_uids = [uid for uid, p in s["players"].items() if not p["is_bankrupt"]]
+    if len(active_uids) == 1:
+        winner = s["players"][active_uids[0]]
+        await bot.send_message(chat_id, f"🏆 <b>Рыночный цикл завершен!</b>\nЕдинственный выживший объект: {winner['emoji']} <b>{winner['name']}</b>! 👍.", parse_mode="HTML")
         del monopoly_sessions[chat_id]
         return
 
@@ -633,19 +638,23 @@ async def mono_process_turn(chat_id: int):
         return await mono_process_turn(chat_id)
         
     kb = render_mono_keyboard(s, [{"text": "Генерация шага (1-4) 🎲", "callback": f"mono_roll_{uid}"}])
-    msg_text = f"😂 Ход объекта: {p['emoji']} <b>{p['name']}</b>\n💰 Баланс: <b>{p['balance']}$</b>"
+    msg_txt = f"😂 Ход объекта: {p['emoji']} <b>{p['name']}</b>\n💰 Текущий капитал: <b>{p['balance']}$</b>"
     
     if s.get("board_msg_id"):
-        try: await bot.edit_message_text(msg_text, chat_id, s["board_msg_id"], reply_markup=kb, parse_mode="HTML")
-        except Exception: pass
+        try: 
+            await bot.edit_message_text(msg_txt, chat_id, s["board_msg_id"], reply_markup=kb, parse_mode="HTML")
+        except Exception: 
+            s["board_msg_id"] = (await bot.send_message(chat_id, msg_txt, reply_markup=kb, parse_mode="HTML")).message_id
     else:
-        msg = await bot.send_message(chat_id, msg_text, reply_markup=kb, parse_mode="HTML")
+        msg = await bot.send_message(chat_id, msg_txt, reply_markup=kb, parse_mode="HTML")
         s["board_msg_id"] = msg.message_id
 
 @dp.callback_query(F.data.startswith("mono_roll_"))
 async def mono_roll_handler(c: CallbackQuery):
+    """Логика броска кубика и перемещения по полю."""
     uid = int(c.data.split("_")[2])
-    if c.from_user.id != uid: return await c.answer("Сбой очереди. Сейчас не ваш ход! 📺", show_alert=True)
+    if c.from_user.id != uid: 
+        return await c.answer("Сбой! Ожидайте своей очереди в системе 📺", show_alert=True)
     
     cid, s = c.message.chat.id, monopoly_sessions.get(c.message.chat.id)
     if not s: return
@@ -655,54 +664,57 @@ async def mono_roll_handler(c: CallbackQuery):
     old_pos = p["pos"]
     p["pos"] = (p["pos"] + roll) % len(s["board"])
     
+    # Бонус за круг
     if p["pos"] < old_pos:
         p["balance"] += 200
-        await bot.send_message(cid, f"😂 {p['emoji']} <b>{p['name']}</b> прошел СТАРТ. Начислено 200$ 🍷.", parse_mode="HTML")
+        await bot.send_message(cid, f"😂 {p['emoji']} <b>{p['name']}</b> пересек точку СТАРТ. Капитал увеличен (+200$) 🍷.", parse_mode="HTML")
         
     cell = s["board"][p["pos"]]
-    result_text = f"😂 {p['emoji']} <b>{p['name']}</b> выбросил {roll}.\n📍 Позиция: <b>{cell['name']}</b>."
+    res_text = f"😂 {p['emoji']} <b>{p['name']}</b> выбросил {roll}.\n📍 Текущая позиция: <b>{cell['name']}</b>."
     
+    # Обработка типов ячеек
     if cell["type"] == "tax":
-        amt = cell.get("tax_amount", 100)
-        p["balance"] -= amt
-        result_text += f"\n💸 Списание налога: <b>-{amt}$</b>."
-        await bot.send_message(cid, result_text, parse_mode="HTML")
-        await mono_resolve_bankruptcy(cid, s, uid)
+        tax_amt = cell.get("tax_amount", 100)
+        p["balance"] -= tax_amt
+        res_text += f"\n💸 Списание налога в пользу алгоритма: <b>-{tax_amt}$</b>."
+        await bot.send_message(cid, res_text, parse_mode="HTML")
+        await mono_check_bankruptcy(cid, s, uid)
     elif cell["type"] == "chance":
         mod = random.choice([100, 200, -50, -150])
         p["balance"] += mod
-        result_text += f"\n✨ Аномалия 'Шанс': <b>{'+' if mod>0 else ''}{mod}$</b>."
-        await bot.send_message(cid, result_text, parse_mode="HTML")
-        await mono_resolve_bankruptcy(cid, s, uid)
+        res_text += f"\n✨ Аномалия 'Шанс': <b>{'+' if mod>0 else ''}{mod}$</b>."
+        await bot.send_message(cid, res_text, parse_mode="HTML")
+        await mono_check_bankruptcy(cid, s, uid)
     elif cell["type"] == "prop":
         if cell["owner"] is None:
             if p["balance"] >= cell["price"]:
-                await bot.send_message(cid, result_text, parse_mode="HTML")
+                await bot.send_message(cid, res_text, parse_mode="HTML")
+                # Предлагаем покупку
                 kb = render_mono_keyboard(s, [
-                    {"text": f"Купить за {cell['price']}$ 🍷", "callback": f"mono_buy_{uid}_{p['pos']}"},
-                    {"text": "Пропустить ход 👍", "callback": f"mono_pass_{uid}"}
+                    {"text": f"Приобрести за {cell['price']}$ 🍷", "callback": f"mono_buy_{uid}_{p['pos']}"},
+                    {"text": "Пропустить сделку 👍", "callback": f"mono_pass_{uid}"}
                 ])
                 await bot.edit_message_reply_markup(cid, s["board_msg_id"], reply_markup=kb)
                 return
             else:
-                result_text += f"\n📺 Недостаточно средств для покупки ({cell['price']}$)."
-                await bot.send_message(cid, result_text, parse_mode="HTML")
-                await mono_resolve_bankruptcy(cid, s, uid)
+                res_text += f"\n📺 Недостаточно ресурсов для покупки ({cell['price']}$)."
+                await bot.send_message(cid, res_text, parse_mode="HTML")
+                await mono_check_bankruptcy(cid, s, uid)
         elif cell["owner"] == uid:
-            result_text += "\n🏠 Вы на своей территории. Релаксация... 🍷"
-            await bot.send_message(cid, result_text, parse_mode="HTML")
-            await mono_resolve_bankruptcy(cid, s, uid)
+            res_text += "\n🏠 Вы находитесь в своей собственности. Режим ожидания... 🍷"
+            await bot.send_message(cid, res_text, parse_mode="HTML")
+            await mono_check_bankruptcy(cid, s, uid)
         else:
             owner = s["players"][cell["owner"]]
             rent = cell["rent"]
             p["balance"] -= rent
             owner["balance"] += rent
-            result_text += f"\n💳 Оплата ренты объекту {owner['emoji']} {owner['name']}: <b>{rent}$</b>."
-            await bot.send_message(cid, result_text, parse_mode="HTML")
-            await mono_resolve_bankruptcy(cid, s, uid)
+            res_text += f"\n💳 Автоматическое списание ренты объекту {owner['emoji']} {owner['name']}: <b>{rent}$</b>."
+            await bot.send_message(cid, res_text, parse_mode="HTML")
+            await mono_check_bankruptcy(cid, s, uid)
     else:
-        await bot.send_message(cid, result_text, parse_mode="HTML")
-        await mono_resolve_bankruptcy(cid, s, uid)
+        await bot.send_message(cid, res_text, parse_mode="HTML")
+        await mono_check_bankruptcy(cid, s, uid)
 
 @dp.callback_query(F.data.startswith("mono_buy_"))
 async def mono_buy_callback(c: CallbackQuery):
@@ -716,8 +728,8 @@ async def mono_buy_callback(c: CallbackQuery):
     p["balance"] -= cell["price"]
     cell["owner"] = uid
     
-    await bot.send_message(cid, f"😂 Транзакция успешна. <b>{p['name']}</b> приобрел {cell['name']} 🍷.", parse_mode="HTML")
-    await mono_resolve_bankruptcy(cid, s, uid)
+    await bot.send_message(cid, f"😂 Сделка подтверждена. <b>{p['name']}</b> приобрел локацию '{cell['name']}' 🍷.", parse_mode="HTML")
+    await mono_check_bankruptcy(cid, s, uid)
 
 @dp.callback_query(F.data.startswith("mono_pass_"))
 async def mono_pass_callback(c: CallbackQuery):
@@ -725,83 +737,59 @@ async def mono_pass_callback(c: CallbackQuery):
     cid, s = c.message.chat.id, monopoly_sessions.get(c.message.chat.id)
     if not s or c.from_user.id != uid: return
     
-    await bot.send_message(cid, f"😂 Объект <b>{s['players'][uid]['name']}</b> отказался от сделки 📺.", parse_mode="HTML")
-    await mono_resolve_bankruptcy(cid, s, uid)
+    await bot.send_message(cid, f"😂 Объект <b>{s['players'][uid]['name']}</b> отклонил финансовое предложение 📺.", parse_mode="HTML")
+    await mono_check_bankruptcy(cid, s, uid)
 
-async def mono_resolve_bankruptcy(cid: int, s: dict, uid: int):
+async def mono_check_bankruptcy(cid: int, s: dict, uid: int):
+    """Проверяет баланс и исключает игрока при нуле."""
     p = s["players"][uid]
     if p["balance"] < 0:
         p["is_bankrupt"] = True
+        # Освобождение недвижимости
         for cell in s["board"]:
             if cell.get("owner") == uid: cell["owner"] = None
-        await bot.send_message(cid, f"💀 Объект {p['emoji']} <b>{p['name']}</b> обанкротился и покидает рынок! 📺", parse_mode="HTML")
+        await bot.send_message(cid, f"💀 Объект {p['emoji']} <b>{p['name']}</b> объявляет себя банкротом! Все активы изъяты 📺.", parse_mode="HTML")
     
+    # Смена хода
     s["current_turn_idx"] = (s["current_turn_idx"] + 1) % len(s["turn_queue"])
-    await asyncio.sleep(1)
+    await asyncio.sleep(1.5)
     await mono_process_turn(cid)
 
 @dp.message(Command("монополия_старт", prefix="!/"))
 async def mono_init_cmd(m: Message):
     if not await is_admin(m): return
-    if check_game_active(m.chat.id): return await m.answer("😂 Система занята 👍.")
+    if check_game_active(m.chat.id): 
+        return await m.answer("😂 Система занята 👍.")
     
     monopoly_sessions[m.chat.id] = {"players": {}, "active": False, "board_msg_id": None}
     kb = InlineKeyboardBuilder().button(text="Авторизация 🍷", callback_data="mono_join").button(text="Запуск 😂", callback_data="mono_launch")
-    await m.answer("😂 <b>Экономическая симуляция 'Монополия'.</b> Ожидание игроков 🍷.", reply_markup=kb.as_markup(), parse_mode="HTML")
+    await m.answer("😂 <b>Экономическая симуляция 'Монополия'.</b>\nОжидание инвесторов 🍷.", reply_markup=kb.as_markup(), parse_mode="HTML")
 
-@dp.callback_query(F.data == "mono_join")
-async def mono_join_handler(c: CallbackQuery):
-    s = monopoly_sessions.get(c.message.chat.id)
-    if not s or s["active"]: return
-    p = get_user_profile(c.from_user)
-    
-    used_emojis = [pl["emoji"] for pl in s["players"].values()]
-    emoji = p["emoji"] if p["emoji"] and p["emoji"] not in used_emojis else next((e for e in PLAYER_EMOJIS if e not in used_emojis), "[+]")
-    
-    s["players"][c.from_user.id] = {"name": p["name"], "balance": 1000, "pos": 0, "is_bankrupt": False, "emoji": emoji}
-    p_list = "\n".join([f"{pl['emoji']} <b>{pl['name']}</b>" for pl in s["players"].values()])
-    await c.message.edit_text(f"😂 Регистрация в Монополия:\n{p_list}", reply_markup=c.message.reply_markup, parse_mode="HTML")
-
-@dp.callback_query(F.data == "mono_launch")
-async def mono_launch_handler(c: CallbackQuery):
-    cid = c.message.chat.id
-    s = monopoly_sessions.get(cid)
-    if not s or len(s["players"]) < 2: return await c.answer("Нужно минимум 2 игрока!", show_alert=True)
-    
-    s["active"] = True
-    s["board"] = [dict(cell) for cell in MONOPOLY_BOARD_TEMPLATE]
-    s["turn_queue"] = list(s["players"].keys())
-    random.shuffle(s["turn_queue"])
-    s["current_turn_idx"] = 0
-    
-    await c.message.edit_text("😂 Рынок открыт. Стартовый капитал распределен 🍷.")
-    await mono_process_turn(cid)
-
-# --- ЛОГИКА ИГРЫ: БУНКЕР (ПОЛНЫЙ ЦИКЛ) ---
+# --- МОДУЛЬ: БУНКЕР (ПОЛНАЯ СИМУЛЯЦИЯ) ---
 
 @dp.message(Command("бункер_старт", prefix="!/"))
 async def bunker_init_cmd(m: Message):
     if not await is_admin(m): return
-    if check_game_active(m.chat.id): return await m.answer("😂 Система занята другим алгоритмом 👍.")
+    if check_game_active(m.chat.id): return await m.answer("😂 Система уже в процессе 👍.")
     
     bunker_sessions[m.chat.id] = {"players": {}, "active": False, "round": 1}
-    kb = InlineKeyboardBuilder().button(text="Войти в базу 🍷", callback_data="bn_join").button(text="Запуск 😂", callback_data="bn_launch")
-    await m.answer("😂 <b>Протокол 'БУНКЕР' активирован.</b> Ожидание авторизации объектов 🍷.", reply_markup=kb.as_markup(), parse_mode="HTML")
+    kb = InlineKeyboardBuilder().button(text="Присоединиться 🍷", callback_data="bn_join").button(text="Старт 😂", callback_data="bn_launch")
+    await m.answer("😂 <b>Протокол 'БУНКЕР' в процессе загрузки.</b>\nОжидание авторизации объектов 🍷.", reply_markup=kb.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data == "bn_join")
 async def bunker_join_handler(c: CallbackQuery):
     s = bunker_sessions.get(c.message.chat.id)
     if not s or s["active"]: return
-    profile = get_user_profile(c.from_user)
-    s["players"][c.from_user.id] = {"name": profile["name"]}
-    p_list = "\n".join([f"• <b>{p['name']}</b>" for p in s["players"].values()])
-    await c.message.edit_text(f"😂 Регистрация в Бункер:\n{p_list}", reply_markup=c.message.reply_markup, parse_mode="HTML")
+    p = get_user_profile(c.from_user)
+    s["players"][c.from_user.id] = {"name": p["name"]}
+    list_str = "\n".join([f"• <b>{p['name']}</b>" for p in s["players"].values()])
+    await c.message.edit_text(f"😂 Регистрация в Бункер:\n{list_str}", reply_markup=c.message.reply_markup, parse_mode="HTML")
 
 @dp.callback_query(F.data == "bn_launch")
 async def bunker_launch_handler(c: CallbackQuery):
-    cid = c.message.chat.id
-    s = bunker_sessions.get(cid)
-    if not s or len(s["players"]) < 3: return await c.answer("Требуется минимум 3 объекта! 👍", show_alert=True)
+    cid, s = c.message.chat.id, bunker_sessions.get(c.message.chat.id)
+    if not s or len(s["players"]) < 3: 
+        return await c.answer("Требуется минимум 3 объекта для стабильной симуляции! 👍", show_alert=True)
     
     s["active"] = True
     for uid, p in s["players"].items():
@@ -818,33 +806,35 @@ async def bunker_launch_handler(c: CallbackQuery):
             "revealed": {k: False for k in t}, "rev_this_round": False
         }
         try:
-            msg = (f"😂 <b>Ваши параметры выживания:</b>\n\n"
+            msg = (f"😂 <b>Ваш персональный профиль Бункера:</b>\n\n"
                    f"🧬 Биология: {t['bio']}\n"
                    f"🛠 Профессия: {t['prof']}\n"
                    f"🩺 Здоровье: {t['health']}\n"
                    f"🎭 Черта: {t['trait']}\n"
                    f"🎸 Хобби: {t['hobby']}\n"
                    f"🎒 Багаж: {t['baggage']}\n\n"
-                   f"Используйте кнопки в чате, чтобы вскрыть данные 📺.")
+                   f"Для вскрытия используйте кнопки в чате 📺.")
             await bot.send_message(uid, msg, parse_mode="HTML")
-        except Exception: pass
+        except Exception: 
+            pass
         
-    await c.message.edit_text("😂 Симуляция запущена. Инструкции отправлены в ЛС 🍷.")
+    await c.message.edit_text("😂 Симуляция запущена. Личные характеристики отправлены в ЛС 🍷.")
     await bunker_start_round(cid)
 
 async def bunker_start_round(chat_id: int):
+    """Запускает фазу обсуждения и выбора параметра."""
     s = bunker_sessions.get(chat_id)
     if not s: return
     s["phase"] = "discussion"
     for p in s["players"].values(): p["rev_this_round"] = False
     
     kb = InlineKeyboardBuilder()
-    mapping = {"bio": "Биология", "prof": "Профессия", "health": "Здоровье", "trait": "Черта", "hobby": "Хобби", "baggage": "Багаж"}
+    mapping = {"bio": "🧬 Биология", "prof": "🛠 Профессия", "health": "🩺 Здоровье", "trait": "🎭 Черта", "hobby": "🎸 Хобби", "baggage": "🎒 Багаж"}
     for k, v in mapping.items():
         kb.button(text=v, callback_data=f"bn_reveal_{k}")
-    kb.button(text="К голосованию 📺", callback_data=f"bn_vnow_{chat_id}")
+    kb.button(text="Перейти к исключению 📺", callback_data=f"bn_vnow_{chat_id}")
     
-    await bot.send_message(chat_id, f"😂 <b>Цикл {s['round']}.</b> Фаза обсуждения (5 мин). Вскройте один параметр 🍷.", reply_markup=kb.adjust(3, 3, 1).as_markup(), parse_mode="HTML")
+    await bot.send_message(chat_id, f"😂 <b>Цикл {s['round']}.</b>\nФаза обсуждения (5 мин). Вскройте один из своих параметров 🍷.", reply_markup=kb.adjust(2).as_markup(), parse_mode="HTML")
     
     s["timer"] = asyncio.create_task(asyncio.sleep(300))
     try: await s["timer"]
@@ -856,22 +846,23 @@ async def bunker_reveal_handler(c: CallbackQuery):
     trait = c.data.split("_")[2]
     cid, uid = c.message.chat.id, c.from_user.id
     s = bunker_sessions.get(cid)
-    if not s or s["phase"] != "discussion": return await c.answer("Сейчас нельзя вскрывать данные!")
+    if not s or s["phase"] != "discussion": return await c.answer("Вскрытие в данной фазе запрещено!")
     
     p = s["players"].get(uid)
-    if not p: return await c.answer("Вы не в игре!", show_alert=True)
-    if p["rev_this_round"]: return await c.answer("Лимит исчерпан в этом цикле! 😂", show_alert=True)
-    if p["revealed"][trait]: return await c.answer("Этот параметр уже в общем доступе.")
+    if not p: return await c.answer("Вы не числитесь в списке объектов игры!", show_alert=True)
+    if p["rev_this_round"]: return await c.answer("Лимит вскрытий исчерпан в этом цикле! 😂", show_alert=True)
+    if p["revealed"][trait]: return await c.answer("Этот параметр уже находится в общем доступе.")
     
     p["revealed"][trait] = True
     p["rev_this_round"] = True
     val = p["traits"][trait]
     
     trait_ru = {"bio": "Биологию", "prof": "Профессию", "health": "Здоровье", "trait": "Черту", "hobby": "Хобби", "baggage": "Багаж"}[trait]
-    await bot.send_message(cid, f"😂 Объект <b>{p['name']}</b> открывает <b>{trait_ru}</b>: {val} 👍.", parse_mode="HTML")
+    await bot.send_message(cid, f"😂 Объект <b>{p['name']}</b> открыл доступ к параметру <b>{trait_ru}</b>: {val} 👍.", parse_mode="HTML")
     await c.answer("Данные успешно синхронизированы! 🍷")
 
 async def bunker_start_voting(chat_id: int):
+    """Инициирует голосование на вылет."""
     s = bunker_sessions.get(chat_id)
     if not s or s["phase"] == "voting": return
     s["phase"], s["votes"] = "voting", {}
@@ -879,9 +870,8 @@ async def bunker_start_voting(chat_id: int):
     kb = InlineKeyboardBuilder()
     for uid, p in s["players"].items():
         kb.button(text=p["name"], callback_data=f"bn_v_{chat_id}_{uid}")
-    kb.button(text="Сброс таймера 👍", callback_data=f"bn_vend_{chat_id}")
         
-    await bot.send_message(chat_id, "😂 <b>Таймер истек!</b> Голосование за исключение лишнего объекта 📺:", reply_markup=kb.adjust(2).as_markup(), parse_mode="HTML")
+    await bot.send_message(chat_id, "😂 <b>Таймер обсуждения истек!</b>\nВыберите лишний объект для исключения из Бункера 📺:", reply_markup=kb.adjust(2).as_markup(), parse_mode="HTML")
     
     s["timer"] = asyncio.create_task(asyncio.sleep(60))
     try: await s["timer"]
@@ -896,15 +886,16 @@ async def bunker_vote_handler(c: CallbackQuery):
     
     if not s or s["phase"] != "voting": return
     if uid not in s["players"]: return await c.answer("Ваш доступ заблокирован!")
-    if uid in s["votes"]: return await c.answer("Вы уже проголосовали.")
+    if uid in s["votes"]: return await c.answer("Вы уже сделали выбор.")
     
     s["votes"][uid] = tid
-    await c.answer(f"Голос против {s['players'][tid]['name']} принят 🍷.")
+    await c.answer(f"Голос против объекта {s['players'][tid]['name']} принят 🍷.")
     
     if len(s["votes"]) >= len(s["players"]):
         if s.get("timer"): s["timer"].cancel()
 
 async def bunker_resolve_voting(chat_id: int):
+    """Исключает игрока и проверяет завершение игры."""
     s = bunker_sessions.get(chat_id)
     if not s or s["phase"] != "voting": return
     
@@ -913,48 +904,29 @@ async def bunker_resolve_voting(chat_id: int):
         counts = Counter(s["votes"].values())
         target_id = random.choice([tid for tid, v in counts.items() if v == max(counts.values())])
         name = s["players"].pop(target_id)["name"]
-        await bot.send_message(chat_id, f"😂 Объект <b>{name}</b> исключен по решению большинства. Люк задраен 👍.", parse_mode="HTML")
+        await bot.send_message(chat_id, f"😂 По решению большинства объект <b>{name}</b> покидает Бункер. Люк закрыт 👍.", parse_mode="HTML")
     else:
-        await bot.send_message(chat_id, "😂 Голоса не поступили. Все остаются на борту 📺.")
+        await bot.send_message(chat_id, "😂 Система не получила голосов. Все объекты остаются на борту 📺.")
         
     if len(s["players"]) <= 3:
-        res = "😂 <b>Симуляция завершена. Выжившие:</b>\n\n"
+        res_str = "😂 <b>Симуляция успешно завершена!</b>\nВыжившие в Бункере:\n\n"
         for p in s["players"].values():
-            res += f"👤 <b>{p['name']}</b>: {p['traits']['prof']}, {p['traits']['health']}\n"
-        await bot.send_message(chat_id, res + "\n🍷 Протокол закрыт.", parse_mode="HTML")
+            res_str += f"👤 <b>{p['name']}</b>: {p['traits']['prof']}, {p['traits']['health']}\n"
+        await bot.send_message(chat_id, res_str + "\n🍷 Алгоритм переведен в режим ожидания.", parse_mode="HTML")
         del bunker_sessions[chat_id]
     else:
         s["round"] += 1
         await bunker_start_round(chat_id)
 
-@dp.callback_query(F.data.startswith("bn_vnow_"))
-async def bunker_skip_discussion(c: CallbackQuery):
-    cid = int(c.data.split("_")[2])
-    if not await is_admin(c.message): return
-    s = bunker_sessions.get(cid)
-    if s and s["phase"] == "discussion":
-        if s.get("timer"): s["timer"].cancel()
-    await c.answer()
+# --- МОДУЛЬ: КРЕСТИКИ-НОЛИКИ (ЛОГИЧЕСКИЙ ДУЭЛЬ) ---
 
-@dp.callback_query(F.data.startswith("bn_vend_"))
-async def bunker_end_vote_early(c: CallbackQuery):
-    cid = int(c.data.split("_")[2])
-    if not await is_admin(c.message): return
-    s = bunker_sessions.get(cid)
-    if s and s["phase"] == "voting":
-        if s.get("timer"): s["timer"].cancel()
-    await c.answer()
-
-# --- МОДУЛЬ: КРЕСТИКИ-НОЛИКИ ---
-
-@dp.message(Command("крестики_нолики", "ttt", prefix="!/"))
-async def ttt_init(m: Message):
-    if check_game_active(m.chat.id): return await m.answer("😂 Система занята 👍.")
+@dp.message(Command("крестики_нолики", prefix="!/"))
+async def ttt_init_cmd(m: Message):
+    if check_game_active(m.chat.id): return await m.answer("😂 Занято 👍.")
     tictactoe_games[m.chat.id] = {"board": [None]*9, "turn": "X", "players": []}
-    
     kb = InlineKeyboardBuilder()
     for i in range(9): kb.button(text=" ", callback_data=f"ttt_{i}")
-    await m.answer("😂 <b>Крестики-нолики.</b> Жду двух игроков 🍷.", reply_markup=kb.adjust(3).as_markup(), parse_mode="HTML")
+    await m.answer("😂 <b>Крестики-нолики.</b>\nЖду двух участников симуляции 🍷.", reply_markup=kb.adjust(3).as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data.startswith("ttt_"))
 async def ttt_handler(c: CallbackQuery):
@@ -964,15 +936,16 @@ async def ttt_handler(c: CallbackQuery):
     if not g: return
     
     # Авторизация игроков
-    if uid not in [p["id"] for p in g["players"]]:
+    p_ids = [p["id"] for p in g["players"]]
+    if uid not in p_ids:
         if len(g["players"]) < 2:
             g["players"].append({"id": uid, "name": c.from_user.first_name})
-        else: return await c.answer("Мест нет!")
+        else: return await c.answer("Слоты участников заполнены!")
         
     # Ход
     curr_idx = 0 if g["turn"] == "X" else 1
-    if g["players"][curr_idx]["id"] != uid: return await c.answer("Не ваш ход! 📺", show_alert=True)
-    if g["board"][idx]: return await c.answer("Занято!")
+    if g["players"][curr_idx]["id"] != uid: return await c.answer("Ожидание хода другого объекта 📺!", show_alert=True)
+    if g["board"][idx]: return await c.answer("Клетка уже активирована!")
     
     g["board"][idx] = g["turn"]
     
@@ -991,117 +964,129 @@ async def ttt_handler(c: CallbackQuery):
     p2 = g["players"][1]["name"] if len(g["players"]) > 1 else "???"
     
     if winner:
-        await c.message.edit_text(f"😂 <b>Победил {g['players'][curr_idx]['name']}!</b> 🍷", reply_markup=kb.as_markup(), parse_mode="HTML")
+        await c.message.edit_text(f"😂 Победил объект <b>{g['players'][curr_idx]['name']}</b>! 🍷", reply_markup=kb.as_markup(), parse_mode="HTML")
         del tictactoe_games[cid]
     elif None not in g["board"]:
-        await c.message.edit_text(f"😂 <b>Ничья!</b> Система перезагружена 👍.", reply_markup=kb.as_markup(), parse_mode="HTML")
+        await c.message.edit_text(f"😂 <b>Ничья!</b> Система перегружена 👍.", reply_markup=kb.as_markup(), parse_mode="HTML")
         del tictactoe_games[cid]
     else:
         g["turn"] = "O" if g["turn"] == "X" else "X"
-        await c.message.edit_text(f"😂 {p1} (X) vs {p2} (O). Ход: <b>{g['turn']}</b> 📺.", reply_markup=kb.as_markup(), parse_mode="HTML")
+        await c.message.edit_text(f"😂 {p1} (X) против {p2} (O).\nХод объекта: <b>{g['turn']}</b> 📺.", reply_markup=kb.as_markup(), parse_mode="HTML")
 
 # --- СЕРВИСНЫЕ И АДМИНИСТРАТИВНЫЕ КОМАНДЫ ---
 
 @dp.message(Command("старт", "start", "help", prefix="!/"))
 async def start_help_cmd(m: Message):
+    """Выводит справочную информацию по системе."""
     text = (
-        "🍷 <b>Приветствую в системе ДИОНИС v3.0</b>\n"
-        "Я — развлекательный алгоритм с глубоким обучением. Твой бокал уже полон.\n\n"
+        "🍷 <b>СИСТЕМА ДИОНИС v3.5 (SERVER EDITION)</b>\n"
+        "Приветствую. Я — развлекательный алгоритм с глубоким обучением.\n\n"
         "👤 <b>Профиль:</b>\n"
-        "<code>!ник [Имя]</code> — сменить позывной\n"
-        "<code>!стикер [Emoji]</code> — выбрать маркер\n\n"
+        "<code>!ник [Имя]</code> — смена идентификатора\n"
+        "<code>!стикер [Emoji]</code> — визуальный маркер\n\n"
         "🎮 <b>Групповые симуляции:</b>\n"
-        "<code>!мафия_старт</code> — запуск процесса 'Мафия'\n"
+        "<code>!мафия_старт</code> — запуск 'Мафии'\n"
         "<code>!бункер_старт</code> — запуск протокола 'Бункер'\n"
         "<code>!монополия_старт</code> — экономический цикл\n"
         "<code>!крестики_нолики</code> — логический дуэль\n\n"
         "🧩 <b>Мини-модули:</b>\n"
         "<code>!правда</code>, <code>!действие</code>, <code>!яникогдане</code>\n"
         "<code>!назови5</code>, <code>!назови7</code>, <code>!крокодил</code>\n"
-        "<code>!кмк</code>, <code>!тест</code>, <code>!бинго</code>\n\n"
+        "<code>!тест</code>, <code>!бинго</code>, <code>!кмк</code>\n\n"
         "🛠 <b>База данных (Админ):</b>\n"
         "<code>!добавить_[категория] [текст]</code>"
     )
     await m.answer(text, parse_mode="HTML")
 
 @dp.message(Command("правда", "действие", "яникогдане", "назови5", "назови7", prefix="!/"))
-async def common_games_handler(m: Message, command: CommandObject):
+async def games_handler(m: Message, command: CommandObject):
+    """Универсальный обработчик мини-игр."""
     cmd = command.command
-    db_map = {
-        "правда": (TRUTH_DB, "Правда"), "действие": (DARE_DB, "Действие"),
-        "яникогдане": (NHIE_DB, "Я никогда не"), "назови5": (N5_DB, "Задача (5)"),
-        "назови7": (N7_DB, "Задача (7)")
-    }
-    db, label = db_map.get(cmd, (None, ""))
-    if db:
-        await m.answer(f"😂 <b>{label}:</b> {random.choice(db)} 🍷", parse_mode="HTML")
+    db_map = {"правда": TRUTH_DB, "действие": DARE_DB, "яникогдане": NHIE_DB, "назови5": N5_DB, "назови7": N7_DB}
+    if cmd in db_map:
+        await m.answer(f"😂 <b>{cmd.upper()}:</b> {random.choice(db_map[cmd])} 🍷", parse_mode="HTML")
 
-@dp.message(Command("тест", "test", "бинго", "bingo", "кмк", "kmk", prefix="!/"))
-async def special_modules_handler(m: Message, command: CommandObject):
+@dp.message(Command("тест", "бинго", "кмк", prefix="!/"))
+async def modules_handler(m: Message, command: CommandObject):
+    """Обработка специальных модулей контента."""
     cmd = command.command
-    if cmd in ["тест", "test"]:
-        if TESTS_DB:
-            await m.answer(f"😂 Алгоритм сгенерировал тест:\n{random.choice(TESTS_DB)} 🍷", parse_mode="HTML")
-    elif cmd in ["бинго", "bingo"]:
-        if BINGO_DB:
-            await m.answer_photo(photo=random.choice(BINGO_DB), caption="😂 Матрица вероятностей 'Бинго' сформирована 👍.")
-    elif cmd in ["кмк", "kmk"]:
-        if len(KMK_CHARACTERS) >= 3:
-            s = random.sample(KMK_CHARACTERS, 3)
-            await m.answer(f"😂 Матрица выбора KMK:\n1. <b>{s[0]}</b>\n2. <b>{s[1]}</b>\n3. <b>{s[2]}</b> 🍷", parse_mode="HTML")
+    if cmd == "тест":
+        await m.answer(f"😂 Сгенерирован психологический опрос:\n{random.choice(TESTS_DB)} 🍷")
+    elif cmd == "бинго":
+        await m.answer_photo(photo=random.choice(BINGO_DB), caption="😂 Матрица вероятностей 'Бинго' сформирована 👍.")
+    elif cmd == "кмк":
+        s = random.sample(KMK_CHARACTERS, 3)
+        await m.answer(f"😂 Матрица выбора KMK:\n1. <b>{s[0]}</b>\n2. <b>{s[1]}</b>\n3. <b>{s[2]}</b> 🍷", parse_mode="HTML")
 
 @dp.message(Command("крокодил", prefix="!/"))
 async def croc_cmd(m: Message):
+    """Отправляет секретное слово в ЛС игроку."""
     word = random.choice(CROC_WORDS)
     try:
-        await bot.send_message(m.from_user.id, f"😂 Твое секретное слово: <b>{word}</b>. Не показывай никому! 📺", parse_mode="HTML")
-        await m.answer(f"😂 Слово успешно передано объекту <b>{m.from_user.first_name}</b> 🍷.")
+        await bot.send_message(m.from_user.id, f"😂 Секретное слово для передачи: <b>{word}</b> 📺.")
+        await m.answer(f"😂 Параметры переданы объекту <b>{m.from_user.first_name}</b> 🍷.")
     except Exception:
-        await m.answer("😂 Ошибка! Сначала напиши мне в ЛС, чтобы я мог отправить слово 👍.")
+        await m.answer("😂 Ошибка! Напишите мне в ЛС, чтобы я мог отправлять данные 👍.")
 
 @dp.message(Command(F.string.startswith("добавить_"), prefix="!/"))
 async def add_item_handler(m: Message, command: CommandObject):
+    """Позволяет админам расширять базы данных на лету."""
     if not await is_admin(m): return
-    cat = command.command.replace("добавить_", "")
-    if not command.args: return await m.answer("😂 Пустой контент. Введите текст через пробел.")
+    category = command.command.replace("добавить_", "")
+    if not command.args: return await m.answer("😂 Пустой ввод. Укажите текст после команды.")
     
-    add_custom_item_db(cat, command.args, m.from_user.id)
-    # Обновляем в памяти
+    add_custom_item_db(category, command.args, m.from_user.id)
+    # Мгновенно обновляем в оперативной памяти
     mem_map = {"test": TESTS_DB, "bingo": BINGO_DB, "croc": CROC_WORDS, "kmk": KMK_CHARACTERS, "truth": TRUTH_DB, "dare": DARE_DB, "nhie": NHIE_DB, "n5": N5_DB, "n7": N7_DB}
-    if cat in mem_map: mem_map[cat].append(command.args)
-    await m.answer(f"😂 База данных '{cat}' успешно расширена. Алгоритм обучается 📺.")
+    if category in mem_map:
+        mem_map[category].append(command.args)
+        await m.answer(f"😂 База данных '{category}' расширена. Алгоритм обучается 📺.")
+
+# --- ФОНОВЫЕ ЗАДАЧИ СЕРВЕРА ---
+
+async def health_check_loop():
+    """
+    Каждый час отправляет уведомление супер-админу о стабильной работе системы.
+    """
+    while True:
+        try:
+            await bot.send_message(SUPER_ADMIN_ID, "🍷 Алгоритм ДИОНИС: Статус 'Работаю'. Все системы стабильны.")
+            logger.info("SYSTEM: Уведомление 'Работаю' отправлено супер-админу.")
+        except Exception as e:
+            logger.error(f"SYSTEM ERROR: Ошибка отправки статуса: {e}")
+        
+        await asyncio.sleep(3600)  # Интервал: 1 час
 
 # --- ЗАПУСК И ЗАВЕРШЕНИЕ ---
 
-async def on_shutdown_logic(dp: Dispatcher):
-    """Корректное закрытие сессий при остановке сервера."""
-    logger.info("Инициировано завершение работы бота. Закрытие сессий...")
+async def on_shutdown_logic():
+    """Корректное закрытие всех сессий перед выключением."""
+    logger.info("SHUTDOWN: Инициировано завершение работы бота.")
     await bot.session.close()
 
 async def main():
-    # Инициализация ресурсов
+    # Стартовая инициализация
     init_db()
     
-    # Регистрация middleware
+    # Регистрация систем защиты
     dp.message.middleware(RestrictChatMiddleware())
     dp.callback_query.middleware(RestrictChatMiddleware())
     
-    # Регистрация событий выключения
-    dp.shutdown.register(on_shutdown_logic)
+    # Запуск фонового процесса мониторинга
+    asyncio.create_task(health_check_loop())
     
-    logger.info("Алгоритм ДИОНИС запущен и готов к работе в режиме сервера.")
+    logger.info("SYSTEM START: Бот Дионис запущен на сервере.")
     
     try:
-        # Удаляем вебхуки, если они были, и запускаем опрос
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
     except Exception as e:
-        logger.error(f"Ошибка во время исполнения основного цикла: {e}", exc_info=True)
+        logger.error(f"CRITICAL RUNTIME ERROR: {e}", exc_info=True)
     finally:
-        await on_shutdown_logic(dp)
+        await on_shutdown_logic()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Бот остановлен пользователем или системой.")
+        logger.info("SYSTEM: Бот остановлен вручную.")
