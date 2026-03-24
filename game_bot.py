@@ -70,9 +70,13 @@ if not TOKEN:
     logger.critical("КРИТИЧЕСКАЯ ОШИБКА: BOT_TOKEN не обнаружен. Проверьте переменные окружения.")
     sys.exit(1)
 
+# --- ИНИЦИАЛИЗАЦИЯ БОТА И ДИСПЕТЧЕРА (ДО ОПРЕДЕЛЕНИЯ ФУНКЦИЙ) ---
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
 # --- УПРАВЛЕНИЕ ФАЙЛОВОЙ СИСТЕМОЙ ---
 
-# Путь к папке data (согласно вашему требованию)
+# Путь к папке data (стандарт для Docker)
 DATA_DIR = Path("/app/data")
 try:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -81,7 +85,7 @@ except Exception as e:
     DATA_DIR = Path(__file__).resolve().parent / "data"
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# Путь к базе данных (согласно вашему требованию)
+# Путь к базе данных
 DB_PATH = DATA_DIR / "bot.db"
 
 # --- МАССИВНЫЕ ИГРОВЫЕ БАЗЫ ДАННЫХ (CONTENT PACK) ---
@@ -253,7 +257,7 @@ tictactoe_games = {}
 def init_db():
     """
     Инициализирует базу данных при старте.
-    Реализовано согласно вашему примеру: автоматическое создание файла и таблиц.
+    Автоматически создает файл и таблицы, если они отсутствуют.
     """
     db_exists = DB_PATH.exists()
     
@@ -261,11 +265,11 @@ def init_db():
         # Создаем папку, если она не существует
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         
-        # Подключаемся к базе (используем строку пути)
+        # Подключаемся к базе
         with sqlite3.connect(str(DB_PATH)) as conn:
             cur = conn.cursor()
             
-            # 1. Ваша обязательная таблица users
+            # 1. Обязательная таблица users (согласно вашему запросу)
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY,
@@ -298,8 +302,10 @@ def init_db():
             
             if not db_exists:
                 logger.info(f"СИСТЕМА: База данных создана успешно по пути: {DB_PATH}")
+                print(f"База данных создана: {DB_PATH}")
             else:
                 logger.info(f"СИСТЕМА: База данных уже существует: {DB_PATH}")
+                print(f"База данных уже существует: {DB_PATH}")
                 
             # Подгружаем профили в память
             cur.execute("SELECT user_id, name, emoji FROM profiles")
@@ -400,6 +406,14 @@ async def is_admin(message: types.Message) -> bool:
     except Exception:
         return False
 
+def check_game_active(chat_id: int) -> bool:
+    return any([
+        chat_id in mafia_sessions,
+        chat_id in bunker_sessions,
+        chat_id in monopoly_sessions,
+        chat_id in tictactoe_games
+    ])
+
 def get_user_profile(user: types.User) -> dict:
     if user.id not in fortune_system:
         fortune_system[user.id] = {
@@ -409,6 +423,36 @@ def get_user_profile(user: types.User) -> dict:
         }
         save_profile_db(user.id, user.first_name, None)
     return fortune_system[user.id]
+
+# --- КОМАНДЫ ПРОФИЛЯ ---
+
+@dp.message(Command("ник", "name", prefix="!/"))
+async def set_name_cmd(message: Message, command: CommandObject):
+    if not command.args:
+        return await message.answer(
+            "😂 Ошибка алгоритма. Требуются входные данные: <code>!ник [ВашНик]</code> 🍷.", 
+            parse_mode="HTML"
+        )
+    name = command.args.strip()[:20]
+    profile = get_user_profile(message.from_user)
+    profile["name"] = name
+    save_profile_db(message.from_user.id, name, profile["emoji"])
+    await message.answer(f"😂 Профиль обновлен. Система приветствует вас, <b>{name}</b> 🍷.", parse_mode="HTML")
+
+@dp.message(Command("стикер", "emoji", prefix="!/"))
+async def set_emoji_cmd(message: Message, command: CommandObject):
+    if not command.args:
+        return await message.answer("😂 Некорректный запрос. Используйте: <code>!стикер 🍷</code> 📺.", parse_mode="HTML")
+    
+    emoji = command.args.strip().split()[0]
+    for uid, data in fortune_system.items():
+        if data.get("emoji") == emoji and uid != message.from_user.id:
+            return await message.answer("😂 Данный маркер уже занят другим объектом. Выберите свободный 👍.")
+            
+    profile = get_user_profile(message.from_user)
+    profile["emoji"] = emoji
+    save_profile_db(message.from_user.id, profile["name"], emoji)
+    await message.answer(f"😂 Визуальный маркер {emoji} успешно привязан к вашему ID 📺.")
 
 # --- МОДУЛЬ: МАФИЯ ---
 
