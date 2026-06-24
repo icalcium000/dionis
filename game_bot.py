@@ -62,9 +62,9 @@ from aiogram.types import (
 
 # --- КОНФИГУРАЦИЯ И БЕЗОПАСНОСТЬ (ENV) ---
 
-TOKEN = os.getenv("BOT_TOKEN", "8372090739:AAGRq6MymU_fMXrWiFbfZ7lCRMT2BY9Dz0Y") 
-SUPER_ADMIN_ID = int(os.getenv("SUPER_ADMIN_ID", 1197260250))
-ALLOWED_GROUP_ID = int(os.getenv("ALLOWED_GROUP_ID", -1003806822122))
+TOKEN = os.getenv("TOKEN") 
+SUPER_ADMIN_ID = int(os.getenv("SUPER_ADMIN_ID"))
+ALLOWED_GROUP_ID = int(os.getenv("ALLOWED_GROUP_ID"))
 
 if not TOKEN:
     logger.critical("КРИТИЧЕСКАЯ ОШИБКА: BOT_TOKEN не обнаружен. Проверьте переменные окружения.")
@@ -136,19 +136,9 @@ BUNKER_DATA = {
 }
 
 TESTS_DB = [
-    "https://t.me/quizbot?start=test1", 
-    "https://t.me/quizbot?start=personality_test", 
-    "https://t.me/quizbot?start=who_are_you",
-    "https://t.me/quizbot?start=iq_test_mini",
-    "https://t.me/quizbot?start=career_path",
-    "https://t.me/quizbot?start=logic_puzzle",
-    "https://t.me/quizbot?start=fantasy_role"
 ]
 
 BINGO_DB = [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Bingo_card.svg/512px-Bingo_card.svg.png",
-    "https://raw.githubusercontent.com/otter007/bingo-cards/master/bingo.png",
-    "https://i.pinimg.com/originals/9f/8e/4a/9f8e4a9e3e3b3e3e3e3e3e3e3e3e3e3e.png"
 ]
 
 CROC_WORDS = [
@@ -162,11 +152,7 @@ CROC_WORDS = [
 ]
 
 KMK_CHARACTERS = [
-    "Шрек", "Гарри Поттер", "Тони Старк", "Гермиона Грейнджер", "Джокер", "Мастер Йода", 
-    "Дарт Вейдер", "Бэтмен", "Капитан Америка", "Чудо-Женщина", "Шерлок Холмс", 
-    "Джек Воробей", "Геральт из Ривии", "Лара Крофт", "Наруто", "Питер Пэн",
-    "Рик Санчез", "Морти", "Эминем", "Илон Маск", "Джон Уик", "Терминатор",
-    "Гена Букин", "Саша Белый", "Человек-паук", "Танос", "Железный человек"
+    "01001"
 ]
 
 TRUTH_DB = [
@@ -181,14 +167,13 @@ TRUTH_DB = [
 ]
 
 DARE_DB = [
-    "Пришли свое самое смешное селфи прямо сейчас", "Спой припев любой песни в голосовом сообщении", 
-    "Напиши бывшему/бывшей 'Привет' и покажи скриншот", "Станцуй под воображаемую музыку на видео (15 сек)",
+    "Пришли свое самое смешное селфи прямо сейчас", "Спой припев любой песни в голосовом сообщении", "Станцуй под воображаемую музыку на видео (15 сек)",
     "Расскажи анекдот с серьезным лицом", "Позвони другу и скажи, что ты выиграл миллион",
     "Изобрази тюленя в течение 20 секунд", "Сделай 10 приседаний, считая на иностранном языке",
-    "Напиши в чат 10 комплиментов админу", "Выпей стакан воды залпом",
+    "Напиши в чат 10 комплиментов любому человеку", "Выпей стакан воды залпом",
     "Пришли фото своего холодильника", "Поставь на аватарку в ТГ на час фото чеснока",
     "Напиши любому человеку 'Я знаю твой секрет'", "Пришли последнее фото из галереи",
-    "Расскажи стишок про ДИОНИСА"
+    "Расскажи стишок про себя"
 ]
 
 NHIE_DB = [
@@ -437,7 +422,7 @@ async def set_name_cmd(message: Message, command: CommandObject):
     profile = get_user_profile(message.from_user)
     profile["name"] = name
     save_profile_db(message.from_user.id, name, profile["emoji"])
-    await message.answer(f"😂 Профиль обновлен. Система приветствует вас, <b>{name}</b> 🍷.", parse_mode="HTML")
+    await message.answer(f"😂 Профиль обновлен. Дионис приветствует вас, <b>{name}</b> 🍷.", parse_mode="HTML")
 
 @dp.message(Command("стикер", "emoji", prefix="!/"))
 async def set_emoji_cmd(message: Message, command: CommandObject):
@@ -447,7 +432,7 @@ async def set_emoji_cmd(message: Message, command: CommandObject):
     emoji = command.args.strip().split()[0]
     for uid, data in fortune_system.items():
         if data.get("emoji") == emoji and uid != message.from_user.id:
-            return await message.answer("😂 Данный маркер уже занят другим объектом. Выберите свободный 👍.")
+            return await message.answer("😂 Данный маркер уже занят другим игроком. Выберите свободный 👍.")
             
     profile = get_user_profile(message.from_user)
     profile["emoji"] = emoji
@@ -613,7 +598,7 @@ async def mafia_launch_handler(c: CallbackQuery):
     for uid, p in s["players"].items():
         try: await bot.send_message(uid, f"😂 Роль: <b>{p['role']}</b> 🍷.", parse_mode="HTML")
         except: pass
-    await c.message.edit_text("😂 Начали! См. роли в ЛС... 📺")
+    await c.message.edit_text("😂 Начали! Смотри роль в ЛС... 📺")
     await mafia_night_cycle(cid)
 
 # --- МОДУЛЬ: МОНОПОЛИЯ ---
@@ -739,7 +724,7 @@ async def mono_init_cmd(m: Message):
     if check_game_active(m.chat.id): return await m.answer("😂 Занято 👍.")
     monopoly_sessions[m.chat.id] = {"players": {}, "active": False, "board_msg_id": None}
     kb = InlineKeyboardBuilder().button(text="Войти 🍷", callback_data="mono_join").button(text="Запуск 😂", callback_data="mono_launch")
-    await m.answer("😂 <b>МОНОПОЛИЯ.</b> Ждем инвесторов 🍷.", reply_markup=kb.as_markup(), parse_mode="HTML")
+    await m.answer("😂 <b>МОНОПОЛИЯ.</b> Ждем игроков 🍷.", reply_markup=kb.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data == "mono_join")
 async def mono_join_handler(c: CallbackQuery):
@@ -886,7 +871,7 @@ async def ttt_handler(c: CallbackQuery):
 
 @dp.message(Command("старт", "start", "help", prefix="!/"))
 async def start_help_cmd(m: Message):
-    text = ("🍷 <b>СИСТЕМА ДИОНИС v3.6</b>\n👤 <code>!ник [Имя]</code>, <code>!стикер [Emoji]</code>\n🎮 <code>!мафия_старт</code>, <code>!бункер_старт</code>, <code>!монополия_старт</code>\n🧩 <code>!правда</code>, <code>!действие</code>, <code>!крокодил</code>, <code>!тест</code>, <code>!бинго</code>\n🛠 <code>!добавить_[категория] [текст]</code>")
+    text = ("🍷 <b>ДИОНИС</b>\n👤 <code>!ник [Имя]</code>, <code>!стикер [Emoji]</code>\n🎮 <code>!мафия_старт</code>, <code>!бункер_старт</code>, <code>!монополия_старт</code>\n🧩 <code>!правда</code>, <code>!действие</code>, <code>!крокодил</code>, <code>!тест</code>, <code>!бинго</code>\n🛠 <code>!добавить_[категория] [текст]</code>")
     await m.answer(text, parse_mode="HTML")
 
 @dp.message(Command("правда", "действие", "яникогдане", "назови5", "назови7", prefix="!/"))
